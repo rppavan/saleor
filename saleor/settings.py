@@ -871,6 +871,11 @@ def SENTRY_INIT(dsn: str, sentry_opts: dict):
 
 GRAPHQL_PAGINATION_LIMIT = 100
 GRAPHQL_MIDDLEWARE: list[str] = []
+GRAPHQL_BATCH_MAX_COUNT: int = int(os.environ.get("GRAPHQL_BATCH_MAX_COUNT", 1))
+GRAPHQL_ALIAS_COUNT_LIMIT: int = int(os.environ.get("GRAPHQL_ALIAS_COUNT_LIMIT", 100))
+GRAPHQL_MUTATION_COUNT_LIMIT: int = int(
+    os.environ.get("GRAPHQL_MUTATION_COUNT_LIMIT", 3)
+)
 
 # Set GRAPHQL_QUERY_MAX_COMPLEXITY=0 in env to disable (not recommended)
 GRAPHQL_QUERY_MAX_COMPLEXITY = int(

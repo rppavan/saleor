@@ -35,7 +35,7 @@ from ..webhook import observability
 from . import GraphQLOperationResult
 from .api import API_PATH, schema
 from .context import clear_context, get_context_value
-from .core.validators.query_cost import validate_query_cost
+from .core.validators import validate_query
 from .error import clear_errors
 from .metrics import (
     record_graphql_query_cost,
@@ -181,6 +181,18 @@ class GraphQLView(View):
 
         result: GraphQLOperationResult | None | list[GraphQLOperationResult | None]
         if isinstance(data, list):
+            if len(data) > settings.GRAPHQL_BATCH_MAX_COUNT:
+                return JsonResponse(
+                    data={
+                        "errors": [
+                            self.format_error(
+                                GraphQLError("Number of batch queries exceeded.")
+                            )
+                        ]
+                    },
+                    status=400,
+                )
+
             responses = [self.get_response(request, entry) for entry in data]
             result = [response for response, code in responses]
             status_code = max((code for response, code in responses), default=200)
@@ -383,12 +395,11 @@ class GraphQLView(View):
                     saleor_attributes.SALEOR_SOURCE_SERVICE_NAME, source_service_name
                 )
 
-            query_cost, cost_errors = validate_query_cost(
-                schema,
-                document,
-                variables,
-                COST_MAP,
-                settings.GRAPHQL_QUERY_MAX_COMPLEXITY,
+            query_cost, cost_errors = validate_query(
+                schema=schema,
+                document_ast=document.document_ast,
+                variables=variables,
+                cost_map=COST_MAP,
             )
             span.set_attribute(saleor_attributes.GRAPHQL_OPERATION_COST, query_cost)
 

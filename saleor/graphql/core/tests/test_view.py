@@ -17,7 +17,9 @@ from ...tests.utils import get_graphql_content, get_graphql_content_from_respons
 from ...views import GraphQLView, generate_cache_key
 
 
-def test_batch_queries(category, product, api_client, channel_USD):
+def test_batch_queries(category, product, api_client, channel_USD, settings):
+    settings.GRAPHQL_BATCH_MAX_COUNT = 2
+
     query_product = """
         query GetProduct($id: ID!, $channel: String) {
             product(id: $id, channel: $channel) {
@@ -61,6 +63,41 @@ def test_batch_queries(category, product, api_client, channel_USD):
     }
     assert data["product"]["name"] == product.name
     assert data["category"]["name"] == category.name
+
+
+def test_rejects_based_on_number_batch_queries(api_client, settings):
+    """Verifies the behavior when sending multiple batch queries."""
+
+    # By default, we expect Saleor to disallow batch queries
+    assert settings.GRAPHQL_BATCH_MAX_COUNT == 1
+
+    query = {"query": "{__typename}"}
+    queries = [query]
+
+    # When sending a batch with only 1 query, it should allow it
+    resp = api_client.post(data=queries)
+    resp_data = resp.json()
+    assert isinstance(resp_data, list)
+    assert len(resp_data) == 1
+    resp_data[0].pop("extensions")
+    assert resp_data[0] == {"data": {"__typename": "Query"}}
+
+    # When sending more than 1 query, it should reject
+    queries.append(query)
+    resp = api_client.post(data=queries)
+    assert resp.json() == {
+        "errors": [
+            {
+                "extensions": {
+                    "exception": {
+                        "code": "GraphQLError",
+                    },
+                },
+                "message": "Number of batch queries exceeded.",
+            },
+        ]
+    }
+    assert resp.status_code == 400
 
 
 def test_graphql_view_query_with_invalid_object_type(
